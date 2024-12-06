@@ -1,6 +1,6 @@
 import { streamContent } from '@/lib/ai/generate'
 import { NextResponse } from 'next/server'
-import { CoreTool, DeepPartial, StreamingTextResponse, StreamObjectResult, StreamTextResult } from 'ai'
+import { CoreTool, DeepPartial, StreamObjectResult, StreamTextResult } from 'ai'
 import { removeEmptyKeys } from '@/lib/utils/utils'
 import { PromptDefinitionType, PromptOptionsType } from '@/lib/ai/prompt-types'
 import { ProgressType } from '@/lib/progress'
