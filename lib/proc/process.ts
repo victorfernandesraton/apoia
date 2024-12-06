@@ -41,18 +41,16 @@ export type DadosDoProcessoType = {
 }
 
 const selecionarPecas = (pecas: PecaType[], descricoes: string[]) => {
-    const pecasRelevantes = pecas.filter(p => descricoes.includes(p.descr))
-
     // Seleciona as peças de acordo com o tipo de peça, pegando sempre a primeira peça de cada tipo
+    const pecasRelevantes = pecas.filter(p => descricoes.includes(p.descr.toUpperCase()))
     let pecasSelecionadas: PecaType[] = []
-    let idxDescricao = 0
+    if (!pecasRelevantes.length) {
+        return null
+    }
 
-    for (const peca of pecasRelevantes) {
-        if (peca.descr === descricoes[idxDescricao]) {
-            pecasSelecionadas = [...pecasSelecionadas, peca]
-            idxDescricao++
-            if (idxDescricao >= descricoes.length) break
-        }
+    for (const descr of descricoes) {
+        let pecaSelecionada = pecasRelevantes.find(peca => peca.descr.toUpperCase().includes(descr))
+        pecasSelecionadas.unshift(pecaSelecionada)
     }
     if (pecasSelecionadas.length !== descricoes.length)
         return null
@@ -64,14 +62,10 @@ const selecionarUltimasPecas = (pecas: PecaType[], descricoes: string[]) => {
 
     // Seleciona as peças de acordo com o tipo de peça, pegando sempre a última peça de cada tipo
     let pecasSelecionadas: PecaType[] = []
-    let idxDescricao = descricoes.length - 1
 
-    for (const peca of pecasRelevantes.reverse()) {
-        if (peca.descr === descricoes[idxDescricao]) {
-            pecasSelecionadas = [peca, ...pecasSelecionadas]
-            idxDescricao--
-            if (idxDescricao < 0) break
-        }
+    for (const descr of descricoes) {
+        let pecaSelecionada = pecasRelevantes.reverse().find(peca => peca.descr.toUpperCase().includes(descr))
+        pecasSelecionadas.unshift(pecaSelecionada)
     }
     if (pecasSelecionadas.length !== descricoes.length)
         return null
