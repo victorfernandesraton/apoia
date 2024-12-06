@@ -4,31 +4,36 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { getPrefs } from '../utils/prefs'
 import { LanguageModelV1 } from '@ai-sdk/provider'
 import { createGroq } from '@ai-sdk/groq'
+import { createAzure } from "@ai-sdk/azure"
 import { EMPTY_PREFS_COOKIE, PrefsCookieType } from '@/lib/utils/prefs-types';
-import { EMPTY_FORM_STATE } from '../ui/form-support'
-import { enumSortById, ModelProvider } from './model-types'
-import { redirect } from 'next/navigation'
+import { ModelProvider } from './model-types'
 
-export function getEnvKeyByModel(model: string): string {
+export function getKeysByModel(model: string): string[] {
     if (model.startsWith('claude-')) {
-        return ModelProvider.ANTHROPIC.apiKey
+        return [ModelProvider.ANTHROPIC.apiKey]
     } else if (model.startsWith('gpt-')) {
-        return ModelProvider.OPENAI.apiKey
+        return [ModelProvider.OPENAI.apiKey, ModelProvider.AZURE.apiKey]
     } else if (model.startsWith('gemini-')) {
-        return ModelProvider.GOOGLE.apiKey
+        return [ModelProvider.GOOGLE.apiKey]
     } else if (model.startsWith('llama-')) {
-        return ModelProvider.GROQ.apiKey
+        return [ModelProvider.GROQ.apiKey]
     }
-    throw new Error('Invalid model')
 }
 
-export function getApiKeyByModel(model: string, prefs: PrefsCookieType): string {
-    const envKey = getEnvKeyByModel(model)
-    let s = prefs?.env[envKey]
-    if (s) return s
-    const s2 = process.env[envKey]
-    if (s2) return s2
-    throw new Error(`API Key ${envKey} not found for model ${model}`)
+export function getAvaliableKeysAPI(prefs: PrefsCookieType): Map<string, string> {
+    const keys = Object.values(ModelProvider).map(provider => provider.apiKey)
+    let result = new Map<string, string>()
+    for (const [key, value] of Object.entries(process.env)) {
+        if (keys.includes(key)) {
+            result.set(key, value)
+        }
+    }
+    for (const [key, value] of Object.entries(prefs.env)) {
+        if (keys.includes(key)) {
+            result.set(key, value)
+        }
+    }
+    return result
 }
 
 export function getModel(params?: { structuredOutputs: boolean, overrideModel?: string }): { model: string, modelRef: LanguageModelV1 } {
@@ -41,25 +46,41 @@ export function getModel(params?: { structuredOutputs: boolean, overrideModel?: 
     }
 
     if (params?.overrideModel) model = params.overrideModel
-
-    const apiKey = getApiKeyByModel(model, prefs || EMPTY_PREFS_COOKIE)
-
-    if (getEnvKeyByModel(model) === ModelProvider.ANTHROPIC.apiKey) {
-        const anthropic = createAnthropic({ apiKey: apiKey })
-        return { model, modelRef: anthropic(model) }
+    const apiKeysMap = getAvaliableKeysAPI(prefs || EMPTY_PREFS_COOKIE)
+    const keysByModel = getKeysByModel(model)
+    let apiKey: string
+    let apiType: string
+    for (const key of keysByModel) {
+        if (apiKeysMap.has(key)) {
+            apiKey = apiKeysMap.get(key)
+            apiType = key
+            break
+        }
     }
-    if (getEnvKeyByModel(model) === ModelProvider.OPENAI.apiKey) {
-        const openai = createOpenAI({ apiKey: apiKey })
-        return { model, modelRef: openai(model, { structuredOutputs: params?.structuredOutputs }) }
+    switch (apiType) {
+        case ModelProvider.ANTHROPIC.apiKey:
+            const anthropic = createAnthropic({ apiKey })
+            return { model, modelRef: anthropic(model) }
+        case ModelProvider.OPENAI.apiKey:
+            const openai = createOpenAI({ apiKey })
+            return { model, modelRef: openai(model, { structuredOutputs: params?.structuredOutputs }) }
+        case ModelProvider.GOOGLE.apiKey:
+            const google = createGoogleGenerativeAI({ apiKey })
+            return { model, modelRef: google(model, { structuredOutputs: params?.structuredOutputs }) }
+        case ModelProvider.GROQ.apiKey:
+            const groq = createGroq({ apiKey })
+            return { model, modelRef: groq(model, {}) }
+        case ModelProvider.AZURE.apiKey:
+            const azure = createAzure({
+                apiKey: apiKey,
+                // TODO: mover isso para ser editado tanbém nas configs de models
+                resourceName: process.env.AZURE_RESOURCE,
+                // TODO: mover isso para ser editado tanbém nas configs de models
+                apiVersion: "2024-02-15-preview"
+            })
+            return { model, modelRef: azure(model, { structuredOutputs: params.structuredOutputs }) }
+        default:
+            throw new Error(`Model ${model} not found`)
     }
-    if (getEnvKeyByModel(model) === ModelProvider.GOOGLE.apiKey) {
-        const google = createGoogleGenerativeAI({ apiKey: apiKey })
-        return { model, modelRef: google(model, { structuredOutputs: params?.structuredOutputs }) }
-    }
-    if (getEnvKeyByModel(model) === ModelProvider.GROQ.apiKey) {
-        const groq = createGroq({ apiKey: apiKey })
-        return { model, modelRef: groq(model, {}) }
-    }
-    throw new Error(`Model ${model} not found`)
 }
 
